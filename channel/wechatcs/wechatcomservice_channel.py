@@ -125,8 +125,6 @@ class WechatComServiceChannel(ChatChannel):
         except Exception as e:
             logger.error("Failed to change service state:", e)
 
-        self.set_manual_flag(True)
-
     def startup(self):
         # start message listener
         # wechatcomservice_channel.py
@@ -259,6 +257,7 @@ class WechatComServiceChannel(ChatChannel):
             # service_state
             # 0	未处理, 1	由智能助手接待, 2	待接入池排队中, 3	由人工接待, 4	已结束/未开始
             self.set_manual_kf(external_userid=external_userid, open_kfid=open_kfid, service_state=2)
+            self.set_manual_flag(True)
 
     def send_text_message(self, external_userid, open_kfid, content, msgid=None):
         url = f"https://qyapi.weixin.qq.com/cgi-bin/kf/send_msg?access_token={self.client.fetch_access_token()}"
