@@ -30,6 +30,8 @@ from wechatpy.enterprise.crypto import WeChatCrypto
 from wechatpy.exceptions import InvalidSignatureException
 from wechatpy.enterprise.exceptions import InvalidCorpIdException
 
+from cachetools import TTLCache
+
 MAX_UTF8_LEN = 2048
 
 
@@ -54,6 +56,8 @@ class WechatComServiceChannel(ChatChannel):
         )
         self.crypto = WeChatCrypto(self.token, self.aes_key, self.corp_id)
         self.client = WechatComAppClient(self.corp_id, self.secret)
+
+        self.cache_dict = TTLCache(maxsize=2, ttl=7000)
 
     def startup(self):
         # start message listener
