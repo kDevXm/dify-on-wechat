@@ -125,7 +125,7 @@ class WechatComServiceChannel(ChatChannel):
         except Exception as e:
             logger.error("Failed to change service state:", e)
 
-        self.manual_flag = True
+        self.set_manual_flag(True)
 
     def startup(self):
         # start message listener
