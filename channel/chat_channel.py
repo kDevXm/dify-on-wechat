@@ -36,6 +36,7 @@ class ChatChannel(Channel):
 
     def set_manual_flag(self, value):
         self.manual_flag = value
+        print(f'set {self.manual_flag=}')
 
     # 根据消息构造context，消息内容相关的触发项写在这里
     def _compose_context(self, ctype: ContextType, content, **kwargs):
