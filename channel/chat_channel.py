@@ -169,6 +169,7 @@ class ChatChannel(Channel):
         return context
 
     def _handle(self, context: Context):
+        print(f'{self.manual_flag=}')
         if context is None or not context.content:
             return
         logger.debug("[chat_channel] ready to handle context: {}".format(context))
