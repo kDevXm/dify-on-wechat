@@ -27,6 +27,7 @@ class ChatChannel(Channel):
     futures = {}  # 记录每个session_id提交到线程池的future对象, 用于重置会话时把没执行的future取消掉，正在执行的不会被取消
     sessions = {}  # 用于控制并发，每个session_id同时只能有一个context在处理
     lock = threading.Lock()  # 用于控制对sessions的访问
+    manual_flag = False
 
     def __init__(self):
         _thread = threading.Thread(target=self.consume)
@@ -164,7 +165,7 @@ class ChatChannel(Channel):
         return context
 
     def _handle(self, context: Context):
-        if context is None or not context.content:
+        if context is None or not context.content or self.manual_flag:
             return
         logger.debug("[chat_channel] ready to handle context: {}".format(context))
         # reply的构建步骤
