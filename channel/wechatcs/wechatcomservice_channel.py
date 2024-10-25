@@ -57,7 +57,73 @@ class WechatComServiceChannel(ChatChannel):
         self.crypto = WeChatCrypto(self.token, self.aes_key, self.corp_id)
         self.client = WechatComAppClient(self.corp_id, self.secret)
 
-        self.cache_dict = TTLCache(maxsize=2, ttl=7000)
+        self.cache_dict = TTLCache(maxsize=1, ttl=7000)
+
+    def get_access_token(self):
+        # 获取数据
+        if 'atk' in self.cache_dict:
+            return self.cache_dict['atk']
+        else:
+            # 向 API 发送请求以获取新的 access_token
+            url = "https://qyapi.weixin.qq.com/cgi-bin/gettoken"
+            params = {
+                "corpid": conf().get('wechatcom_corp_id'),
+                "corpsecret": conf().get('7mUxrO8do46qMLAlYafW_SBimQZCeaJqB4ecp4RDlZE')
+            }
+            response = requests.get(url, params=params)
+
+            # 检查请求是否成功
+            if response.status_code == 200:
+                data = response.json()
+                if data["errcode"] == 0:
+                    # 获取 access_token 和过期时间
+                    access_token = data["access_token"]
+                    expires_in = data["expires_in"]
+
+                    # 将 access_token 缓存起来，过期时间为 expires_in 秒
+                    self.cache_dict = TTLCache(1, int(expires_in * 0.9))
+                    self.cache_dict['atk'] = access_token
+
+                    return self.cache_dict['atk']
+                else:
+                    raise Exception(f"Error getting access token: {data['errmsg']}")
+            else:
+                raise Exception(f"HTTP Request failed with status code {response.status_code}")
+
+    def set_manual_kf(self, open_kfid, external_userid, service_state, servicer_userid=None):
+        try:
+            # 获取 access_token
+            token = self.client.fetch_access_token()
+
+            # 请求地址
+            url = f"https://qyapi.weixin.qq.com/cgi-bin/kf/service_state/trans?access_token={token}"
+
+            # 请求数据
+            payload = {
+                "open_kfid": open_kfid,
+                "external_userid": external_userid,
+                "service_state": service_state
+            }
+
+            if servicer_userid:
+                payload['servicer_userid'] = servicer_userid
+
+            # 发送 POST 请求
+            response = requests.post(url, json=payload)
+
+            # 检查请求结果
+            if response.status_code == 200:
+                data = response.json()
+                if data["errcode"] == 0:
+                    logger.info("会话状态变更成功:", data)
+                    return data
+                else:
+                    raise Exception(f"Error changing service state: {data['errmsg']}")
+            else:
+                raise Exception(f"HTTP Request failed with status code {response.status_code}")
+
+        except Exception as e:
+            logger.error("Failed to change service state:", e)
 
     def startup(self):
         # start message listener
@@ -72,15 +138,21 @@ class WechatComServiceChannel(ChatChannel):
         external_userid = context.kwargs['msg'].external_userid  # from_user_id
         open_kfid = context.kwargs['msg'].open_kfid  # to_user_id,也就是客服id
 
+        manual_kf_flag = None
         if reply.type in [ReplyType.TEXT, ReplyType.ERROR, ReplyType.INFO]:
+            manual_kf_flag = (reply.content == conf().get('manual_kf_kw'))
+            if manual_kf_flag:
+                reply.content = '正在为您转人工，请稍等'
+
             reply_text = reply.content
             texts = split_string_by_utf8_length(reply_text, MAX_UTF8_LEN)
             if len(texts) > 1:
                 logger.info("[wechatcs] text too long, split into {} parts".format(len(texts)))
-            # self.send_text_message(external_userid, open_kfid,
-            #                        content, msgid=None)
-            content = reply.content
-            self.send_text_message(external_userid=external_userid, open_kfid=open_kfid, content=content)
+                for text in texts:
+                    self.send_text_message(external_userid=external_userid, open_kfid=open_kfid, content=text)
+            else:
+                content = reply.content
+                self.send_text_message(external_userid=external_userid, open_kfid=open_kfid, content=content)
             logger.info("[wechatcs] Do send text to {}: {}".format(receiver, reply_text))
         elif reply.type == ReplyType.VOICE:
             try:
@@ -180,6 +252,11 @@ class WechatComServiceChannel(ChatChannel):
                 logger.info("[WX] sendLinkCard, receiver={}".format(receiver))
             except json.JSONDecodeError:
                 logger.error("Invalid JSON format in reply.content")
+
+        if manual_kf_flag:
+            # service_state
+            # 0	未处理, 1	由智能助手接待, 2	待接入池排队中, 3	由人工接待, 4	已结束/未开始
+            self.set_manual_kf(external_userid=external_userid, open_kfid=open_kfid, service_state=2)
 
     def send_text_message(self, external_userid, open_kfid, content, msgid=None):
         url = f"https://qyapi.weixin.qq.com/cgi-bin/kf/send_msg?access_token={self.client.fetch_access_token()}"

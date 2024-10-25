@@ -206,6 +206,8 @@ available_setting = {
     "Minimax_api_key": "",
     "Minimax_group_id": "",
     "Minimax_base_url": "",
+
+    "manual_kf_kw": ""
 }
 
 
