@@ -36,6 +36,10 @@ class ChatChannel(Channel):
 
     # 根据消息构造context，消息内容相关的触发项写在这里
     def _compose_context(self, ctype: ContextType, content, **kwargs):
+        if self.manual_flag:
+            print(f'[chat_channel] {self.manual_flag=}')
+            return None
+
         context = Context(ctype, content)
         context.kwargs = kwargs
         if ctype == ContextType.ACCEPT_FRIEND:
@@ -165,7 +169,7 @@ class ChatChannel(Channel):
         return context
 
     def _handle(self, context: Context):
-        if context is None or not context.content or self.manual_flag:
+        if context is None or not context.content:
             return
         logger.debug("[chat_channel] ready to handle context: {}".format(context))
         # reply的构建步骤
