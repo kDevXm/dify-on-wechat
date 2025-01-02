@@ -86,9 +86,14 @@ class ChatChannel(Channel):
 
         external_userid = context.kwargs['msg'].external_userid  # from_user_id
         open_kfid = context.kwargs['msg'].open_kfid  # to_user_id,也就是客服id
-        if self.manual_flag and self.get_kf_state(external_userid=external_userid, open_kfid=open_kfid) == 3:
+        kf_state = self.get_kf_state(external_userid=external_userid, open_kfid=open_kfid)
+        if self.manual_flag and (kf_state == 3 or kf_state == 2):
             print(f'[chat_channel] {self.manual_flag=}')
             return None
+        else:
+            self.set_manual_flag(False)
+            print(f'[chat_channel] {self.manual_flag=}')
+
 
         if ctype == ContextType.ACCEPT_FRIEND:
             return context
