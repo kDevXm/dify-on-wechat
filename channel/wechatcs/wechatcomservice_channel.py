@@ -90,6 +90,37 @@ class WechatComServiceChannel(ChatChannel):
             else:
                 raise Exception(f"HTTP Request failed with status code {response.status_code}")
 
+    def get_kf_state(self, open_kfid, external_userid):
+        try:
+            # 获取 access_token
+            token = self.client.fetch_access_token()
+
+            # 请求地址
+            url = f"https://qyapi.weixin.qq.com/cgi-bin/kf/service_state/get?access_token={token}"
+
+            # 请求数据
+            payload = {
+                "open_kfid": open_kfid,
+                "external_userid": external_userid
+            }
+
+            # 发送 POST 请求
+            response = requests.post(url, json=payload)
+
+            # 检查请求结果
+            if response.status_code == 200:
+                data = response.json()
+                if data["errcode"] == 0:
+                    logger.info("获取会话状态成功:", data)
+                    return data['service_state']
+                else:
+                    raise Exception(f"Error get service state: {data['errmsg']}")
+            else:
+                raise Exception(f"HTTP Request failed with status code {response.status_code}")
+
+        except Exception as e:
+            logger.error("Failed to get service state:", e)
+
     def set_manual_kf(self, open_kfid, external_userid, service_state, servicer_userid=None):
         try:
             # 获取 access_token
@@ -256,8 +287,14 @@ class WechatComServiceChannel(ChatChannel):
         if manual_kf_flag:
             # service_state
             # 0	未处理, 1	由智能助手接待, 2	待接入池排队中, 3	由人工接待, 4	已结束/未开始
-            self.set_manual_kf(external_userid=external_userid, open_kfid=open_kfid, service_state=2)
-            self.set_manual_flag(True)
+            kf_state = self.get_kf_state(external_userid=external_userid, open_kfid=open_kfid)
+            print(f'{kf_state=}')
+            if kf_state < 2:
+                self.set_manual_kf(external_userid=external_userid, open_kfid=open_kfid, service_state=2)
+                self.set_manual_flag(True)
+            elif kf_state == 4 or kf_state == 0:
+                self.set_manual_flag(False)
+
 
     def send_text_message(self, external_userid, open_kfid, content, msgid=None):
         url = f"https://qyapi.weixin.qq.com/cgi-bin/kf/send_msg?access_token={self.client.fetch_access_token()}"
