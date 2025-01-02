@@ -11,6 +11,9 @@ from channel.channel import Channel
 from common.dequeue import Dequeue
 from common import memory
 from plugins import *
+from wechatpy.enterprise.crypto import WeChatCrypto
+from channel.wechatcom.wechatcomapp_client import WechatComAppClient
+import requests
 
 try:
     from voice.audio_convert import any_to_wav
@@ -33,19 +36,60 @@ class ChatChannel(Channel):
         _thread.setDaemon(True)
         _thread.start()
         self.manual_flag = False
+        self.corp_id = conf().get("wechatcom_corp_id")
+        self.secret = conf().get("wechatcomapp_secret")
+        self.agent_id = conf().get("wechatcomapp_agent_id")
+        self.token = conf().get("wechatcomapp_token")
+        self.aes_key = conf().get("wechatcomapp_aes_key")
+        self.crypto = WeChatCrypto(self.token, self.aes_key, self.corp_id)
+        self.client = WechatComAppClient(self.corp_id, self.secret)
 
     def set_manual_flag(self, value):
         self.manual_flag = value
         print(f'set {self.manual_flag=}')
 
+    def get_kf_state(self, open_kfid, external_userid):
+        try:
+            # 获取 access_token
+            token = self.client.fetch_access_token()
+
+            # 请求地址
+            url = f"https://qyapi.weixin.qq.com/cgi-bin/kf/service_state/get?access_token={token}"
+
+            # 请求数据
+            payload = {
+                "open_kfid": open_kfid,
+                "external_userid": external_userid
+            }
+
+            # 发送 POST 请求
+            response = requests.post(url, json=payload)
+
+            # 检查请求结果
+            if response.status_code == 200:
+                data = response.json()
+                if data["errcode"] == 0:
+                    logger.info("获取会话状态成功:", data)
+                    return data['service_state']
+                else:
+                    raise Exception(f"Error get service state: {data['errmsg']}")
+            else:
+                raise Exception(f"HTTP Request failed with status code {response.status_code}")
+
+        except Exception as e:
+            logger.error("Failed to get service state:", e)
+
     # 根据消息构造context，消息内容相关的触发项写在这里
     def _compose_context(self, ctype: ContextType, content, **kwargs):
-        if self.manual_flag:
+        context = Context(ctype, content)
+        context.kwargs = kwargs
+
+        external_userid = context.kwargs['msg'].external_userid  # from_user_id
+        open_kfid = context.kwargs['msg'].open_kfid  # to_user_id,也就是客服id
+        if self.manual_flag and self.get_kf_state(external_userid=external_userid, open_kfid=open_kfid) == 3:
             print(f'[chat_channel] {self.manual_flag=}')
             return None
 
-        context = Context(ctype, content)
-        context.kwargs = kwargs
         if ctype == ContextType.ACCEPT_FRIEND:
             return context
         # context首次传入时，origin_ctype是None,
