@@ -413,6 +413,37 @@ class Query:
             raise web.Forbidden()
         return echostr
 
+    def send_opener(self, token, msgid):
+        try:
+            # 请求地址
+            url = f"https://qyapi.weixin.qq.com/cgi-bin/kf/send_msg_on_event?access_token={token}"
+
+            # 请求数据
+            payload = {
+                "msgid": msgid,
+                "msgtype": 'text',
+                "text": {
+                    "content": "欢迎咨询"
+                }
+            }
+
+            # 发送 POST 请求
+            response = requests.post(url, json=payload)
+
+            # 检查请求结果
+            if response.status_code == 200:
+                data = response.json()
+                if data["errcode"] == 0:
+                    logger.info("发送客服欢迎语成功:", data)
+                    return data
+                else:
+                    raise Exception(f"Error send opener state: {data['errmsg']}")
+            else:
+                raise Exception(f"HTTP Request failed with status code {response.status_code}")
+
+        except Exception as e:
+            logger.error("Failed to send opener state:", e)
+
     def POST(self):
         channel = WechatComServiceChannel()
         params = web.input()
@@ -430,6 +461,7 @@ class Query:
             xml_tree = ET.fromstring(encrypted_message)
             msg_type = xml_tree.find("MsgType").text
             event = xml_tree.find("Event").text if xml_tree.find("Event") is not None else ""
+            print(f'{event=}')
 
             if msg_type == "event" and event == "kf_msg_or_event":
                 # 在这里处理特定事件
@@ -440,6 +472,11 @@ class Query:
 
                 latest_message = channel.get_latest_message(token, open_kfid, next_cursor)
                 logger.debug(f"[wechatcs] latest_message: {latest_message}")
+                # try:
+                #     code = event['welcome_code']
+                #     self.send_opener(token, code)
+                # except Exception as e_:
+                #     pass
                 try:
                     wechatcom_copy_msg = WechatComServiceMessage(msg=latest_message, client=channel.client)
                     logger.debug(f"[wechatcs] wechatcom_copy_msg: {wechatcom_copy_msg}")
