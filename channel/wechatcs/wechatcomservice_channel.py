@@ -444,6 +444,20 @@ class Query:
         except Exception as e:
             logger.error("Failed to send opener state:", e)
 
+    def print_element(self, element, indent=''):
+        # 打印元素的标签和文本内容
+        if element.text and element.text.strip():
+            print(indent + element.tag + ': ' + element.text.strip())
+        else:
+            print(indent + element.tag + ': ')
+        # 打印元素的属性
+        if element.attrib:
+            for key, value in element.attrib.items():
+                print(indent + '  ' + key + ': ' + value)
+        # 递归处理子元素
+        for child in element:
+            self.print_element(child, indent + '  ')
+
     def POST(self):
         channel = WechatComServiceChannel()
         params = web.input()
@@ -461,7 +475,7 @@ class Query:
             xml_tree = ET.fromstring(encrypted_message)
             msg_type = xml_tree.find("MsgType").text
             event = xml_tree.find("Event").text if xml_tree.find("Event") is not None else ""
-            print(f'{xml_tree=}')
+            self.print_element(xml_tree, '\t')
 
             if msg_type == "event" and event == "kf_msg_or_event":
                 # 在这里处理特定事件
