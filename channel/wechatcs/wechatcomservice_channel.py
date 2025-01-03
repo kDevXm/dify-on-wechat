@@ -461,7 +461,7 @@ class Query:
             xml_tree = ET.fromstring(encrypted_message)
             msg_type = xml_tree.find("MsgType").text
             event = xml_tree.find("Event").text if xml_tree.find("Event") is not None else ""
-            print(f'{event=}')
+            print(f'{xml_tree=}')
 
             if msg_type == "event" and event == "kf_msg_or_event":
                 # 在这里处理特定事件
